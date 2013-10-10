@@ -1,10 +1,13 @@
 #redjava
-a redis mapper for java - (model, save, and load)
+A redis mapper for java - (model, save, and load).
 
-(work in progress)
+(work in progress...)
 
-currently this library creates indexes with sorted sets,
-however finding objects is functionality to be added in time...
+redjava supports String, Integer, Boolean, and references to other Objects,
+and there is not a predifined limit to how many sub objects one can have.
+
+Currently this library creates indexes with sorted sets,
+however finding objects is functionality to be added in time.
 
 
 ##Prequisites
@@ -46,6 +49,25 @@ public class Customer {
         lastName = last;
     }
 
+}
+
+
+public class Address {
+
+
+    @RedStr
+    public String street, city, zip, state;
+
+
+    public Address() {
+    }
+
+    public Address(String street, String city, String zip, String state) {
+        this.street = street;
+        this.city = city;
+        this.zip = zip;
+        this.state = state;
+    }
 }
 ```
 
