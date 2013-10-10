@@ -105,3 +105,7 @@ System.out.println(tom.firstName + " " + tom.lastName);
      9) "index:Address:city"
     10) "index:Address:street"
     11) "Customer:1"
+
+
+##Further
+You can learn more about strategies for programming with redis at [nosqlcode](http://nosqlcode.com)
