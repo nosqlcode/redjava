@@ -6,15 +6,20 @@ however finding objects is functionality to be added in time...
 
 
 ##Import
+```java
     import com.nosqlcode.redjava.Mapper;
     import com.nosqlcode.redjava.Pool;
+```
 
 
 ##Start
+```java
     Pool.connect("127.0.0.1", 6379);
+```
 
 
 ##Model
+```java
     public class Customer {
 
 
@@ -35,19 +40,24 @@ however finding objects is functionality to be added in time...
         }
 
     }
+```
 
 
 ##Save
+```java
     Customer thomas = new Customer("thomas", "silva");
     thomas.address = new Address("123 fake street", "a city", "89764", "AA");
 
     Mapper mapper = new Mapper(thomas);
     mapper.save();
+```
 
 
 #Load
+```java
     Customer tom = new Customer();
     Mapper mapper2 = new Mapper(tom, mapper.getId());
     mapper2.load();
 
     System.out.println(tom.firstName + " " + tom.lastName);
+```
