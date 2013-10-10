@@ -29,7 +29,6 @@ public class Test {
         Mapper mapper2 = new Mapper(tom, mapper.getId());
         mapper2.load();
 
-
         System.out.println(tom.firstName + " " + tom.lastName);
     }
 }
