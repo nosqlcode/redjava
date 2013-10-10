@@ -5,6 +5,11 @@ currently this library creates indexes with sorted sets,
 however finding objects is functionality to be added in time...
 
 
+##Prequisites
+jedis client - [jar](https://github.com/xetorthio/jedis/archive/master.zip)
+commons-pool - [jar](http://apache.mirrors.tds.net//commons/pool/binaries/commons-pool-1.6-bin.zip)
+
+
 ##Import
 ```java
 import com.nosqlcode.redjava.Mapper;
