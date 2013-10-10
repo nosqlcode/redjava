@@ -90,3 +90,18 @@ mapper2.load();
 
 System.out.println(tom.firstName + " " + tom.lastName);
 ```
+
+
+##Result
+    redis 127.0.0.1:6379> keys *
+     1) "index:Address:state"
+     2) "index:Customer:address"
+     3) "index:Address:zip"
+     4) "Address"
+     5) "index:Customer:lastName"
+     6) "Address:1"
+     7) "Customer"
+     8) "index:Customer:firstName"
+     9) "index:Address:city"
+    10) "index:Address:street"
+    11) "Customer:1"
