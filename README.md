@@ -1,6 +1,8 @@
 #redjava
 a redis mapper for java - (model, save, and load)
+
 (work in progress)
+
 currently this library creates indexes with sorted sets,
 however finding objects is functionality to be added in time...
 
@@ -58,7 +60,7 @@ mapper.save();
 ```
 
 
-#Load
+##Load
 ```java
 Customer tom = new Customer();
 Mapper mapper2 = new Mapper(tom, mapper.getId());
