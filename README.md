@@ -7,57 +7,57 @@ however finding objects is functionality to be added in time...
 
 ##Import
 ```java
-    import com.nosqlcode.redjava.Mapper;
-    import com.nosqlcode.redjava.Pool;
+import com.nosqlcode.redjava.Mapper;
+import com.nosqlcode.redjava.Pool;
 ```
 
 
 ##Start
 ```java
-    Pool.connect("127.0.0.1", 6379);
+Pool.connect("127.0.0.1", 6379);
 ```
 
 
 ##Model
 ```java
-    public class Customer {
+public class Customer {
 
 
-        @RedStr
-        public String firstName, lastName;
+    @RedStr
+    public String firstName, lastName;
 
-        @RedObj
-        public Address address;
+    @RedObj
+    public Address address;
 
 
-        public Customer() {
-        }
-
-        public Customer(String first, String last) {
-
-            firstName = first;
-            lastName = last;
-        }
-
+    public Customer() {
     }
+
+    public Customer(String first, String last) {
+
+        firstName = first;
+        lastName = last;
+    }
+
+}
 ```
 
 
 ##Save
 ```java
-    Customer thomas = new Customer("thomas", "silva");
-    thomas.address = new Address("123 fake street", "a city", "89764", "AA");
+Customer thomas = new Customer("thomas", "silva");
+thomas.address = new Address("123 fake street", "a city", "89764", "AA");
 
-    Mapper mapper = new Mapper(thomas);
-    mapper.save();
+Mapper mapper = new Mapper(thomas);
+mapper.save();
 ```
 
 
 #Load
 ```java
-    Customer tom = new Customer();
-    Mapper mapper2 = new Mapper(tom, mapper.getId());
-    mapper2.load();
+Customer tom = new Customer();
+Mapper mapper2 = new Mapper(tom, mapper.getId());
+mapper2.load();
 
-    System.out.println(tom.firstName + " " + tom.lastName);
+System.out.println(tom.firstName + " " + tom.lastName);
 ```
