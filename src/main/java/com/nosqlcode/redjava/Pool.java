@@ -18,7 +18,7 @@ public class Pool {
         // Create and set a JedisPoolConfig
         JedisPoolConfig poolConfig = new JedisPoolConfig();
         // Maximum active connections to Redis instance
-        poolConfig.setMaxActive(20);
+        poolConfig.setMaxTotal(20);
         // Tests whether connection is dead when connection
         // retrieval method is called
         poolConfig.setTestOnBorrow(true);
