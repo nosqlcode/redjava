@@ -21,6 +21,7 @@ public class Test {
         Customer thomas = new Customer("thomas", "silva");
         thomas.address = new Address("123 fake street", "a city", "89764", "AA");
 
+
         Mapper mapper = new Mapper(thomas);
         mapper.save();
 
@@ -28,6 +29,11 @@ public class Test {
         Customer tom = new Customer();
         Mapper mapper2 = new Mapper(tom, mapper.getId());
         mapper2.load();
+
+
+        tom.firstName = "andrea";
+        mapper2.save();
+
 
         System.out.println(tom.firstName + " " + tom.lastName);
     }

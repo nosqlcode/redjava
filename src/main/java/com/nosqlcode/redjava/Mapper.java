@@ -61,6 +61,8 @@ public class Mapper {
                 members.add(new Obj(field, fieldName));
             else if (field.isAnnotationPresent(RedBool.class))
                 members.add(new Bool(field, fieldName));
+
+
         }
     }
 
@@ -120,7 +122,7 @@ public class Mapper {
 
 
     // abstract class for all member types to extend
-    private abstract class Member {
+    private abstract class Member<T> {
 
         protected Field field;
         protected String attr;
@@ -131,8 +133,15 @@ public class Mapper {
             this.attr = attr;
         }
 
-        abstract void save();
-        abstract public void sync();
+        public void save() {
+            if (value() != null) {
+                pipe.hset(id.getBytes(), attr.getBytes(), format());
+                saveIndex(indexValue());
+            }
+        }
+
+        abstract protected byte[] format();
+        abstract protected double indexValue();
 
         protected void saveIndex(double score) {
             pipe.zadd("index:" + type + ":" + attr, score, id);
@@ -146,6 +155,27 @@ public class Mapper {
         public void delete() {
             pipe.hdel(id, attr);
             deleteIndex();
+        }
+
+        protected void sync() {
+            if (future.get() != null)
+                try {
+                    field.set(instance, parse((String) future.get()));
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+        }
+
+        abstract protected T parse(String str);
+
+        protected T value() {
+            T val = null;
+            try {
+                val = (T) field.get(instance);
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            }
+            return val;
         }
     }
 
@@ -171,13 +201,26 @@ public class Mapper {
         public void save() {
             if (mapper != null) {
                 mapper.save();
-                pipe.hset(id, attr, mapper.getId());
-                saveIndex(index.scoreStr(mapper.getId()));
+                super.save();
             }
         }
 
         @Override
+        protected byte[] format() {
+            return mapper.getId().getBytes();
+        }
+        @Override
+        protected double indexValue() {
+            return index.scoreStr(mapper.getId());
+        }
+
+        @Override
         public void sync() {
+        }
+
+        @Override
+        protected Object parse(String str) {
+            return null;
         }
 
         @Override
@@ -191,101 +234,69 @@ public class Mapper {
         @Override
         public void delete() {
             super.delete();
-            mapper.delete();
+            if (mapper != null) {
+                mapper.delete();
+            }
         }
     }
 
-    public class Str extends Member {
-
+    public class Str extends Member<String> {
 
         public Str(Field field, String attr) {
             super(field, attr);
         }
 
         @Override
-        public void save() {
-            if (value() != null) {
-                pipe.hset(id, attr, value());
-                saveIndex(index.scoreStr(value()));
-            }
+        protected byte[] format() {
+            return value().getBytes();
         }
         @Override
-        public void sync() {
-            if (future.get() != null)
-                try {
-                    field.set(instance, future.get());
-                } catch (IllegalAccessException e) {
-                    e.printStackTrace();
-                }
+        protected double indexValue() {
+            return index.scoreStr(value());
         }
-
-        private String value() {
-            String val = null;
-            try {
-                val = (String) field.get(instance);
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            }
-            return val;
+        @Override
+        protected String parse(String str) {
+            return str;
         }
     }
 
-    public class Int extends Member {
+    public class Int extends Member<Integer> {
 
         public Int(Field field, String attr) {
             super(field, attr);
         }
 
         @Override
-        public void save() {
-            if (value() == null)
-                return;
-            pipe.hset(id, attr, Integer.toString(value()));
-            saveIndex(value());
+        protected byte[] format() {
+            return new byte[]{value().byteValue()};
         }
         @Override
-        public void sync() {
-            if (future.get() != null)
-                try {
-                    field.set(instance, Integer.parseInt((String) future.get()));
-                } catch (IllegalAccessException e) {
-                    e.printStackTrace();
-                }
+        protected double indexValue() {
+            return value();
         }
-
-        private Integer value() {
-            Integer val = null;
-            try {
-                val = (Integer) field.get(instance);
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            }
-            return val;
+        @Override
+        protected Integer parse(String str) {
+            return Integer.parseInt(str);
         }
     }
 
-    public class Bool extends Member {
+    public class Bool extends Member<Boolean> {
 
         public Bool(Field field, String attr) {
             super(field, attr);
         }
 
         @Override
-        public void save() {
-            if (value() == null)
-                return;
-            pipe.hset(id, attr, toRed(value()).toString());
-            saveIndex(toRed(value()));
+        protected byte[] format() {
+            return new byte[]{toRed(value()).byteValue()};
         }
         @Override
-        public void sync() {
-            if (future.get() != null) {
-                try {
-                    field.set(instance, fromRed((String) future.get()));
-                } catch (IllegalAccessException e) {
-                    e.printStackTrace();
-                }
-            }
+        protected double indexValue() {
+            return toRed(value());
+        }
+        @Override
+        protected Boolean parse(String str) {
+            return fromRed(str);
         }
 
         private Integer toRed(Boolean val) {
@@ -301,17 +312,6 @@ public class Mapper {
             else
                 return false;
         }
-
-        private Boolean value() {
-            Boolean val = null;
-            try {
-                val = (Boolean) field.get(instance);
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            }
-            return val;
-        }
     }
-
 
 }
