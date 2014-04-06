@@ -1,13 +1,13 @@
 #redjava
-A redis mapper for java - (model, save, and load).
+a redis mapper for java - (model, save, load, find, and delete)
 
 (work in progress...)
 
 redjava supports String, Integer, Boolean, and references to other Objects,
-and there is not a predifined limit to how many sub objects one can have.
+and there is not a limit to how many sub objects one can have.
 
-Currently this library creates indexes with sorted sets,
-however finding objects is functionality to be added in time.
+currently this mapper automatically creates indexes in redis,
+which is later used to find objects
 
 
 ##Start
@@ -70,16 +70,6 @@ mapper.save();
 ```
 
 
-##Load
-```java
-Customer tom = new Customer();
-Mapper mapper2 = new Mapper(tom, mapper.getId());
-mapper2.load();
-
-System.out.println(tom.firstName + " " + tom.lastName);
-```
-
-
 ##Result
     redis 127.0.0.1:6379> keys *
      1) "index:Address:state"
@@ -95,5 +85,30 @@ System.out.println(tom.firstName + " " + tom.lastName);
     11) "Customer:1"
 
 
-##Further
-You can learn more about strategies for programming with redis at [nosqlcode](http://nosqlcode.com)
+##Load
+```java
+Customer tom = new Customer();
+Mapper mapper2 = new Mapper(tom, mapper.getId());
+mapper2.load();
+
+System.out.println(tom.firstName + " " + tom.lastName);
+```
+
+
+##Find
+```java
+SearchCriteria searchCriteria = mapper2.getCriteria();
+Mapper.Finder<Customer> finder = new Mapper.Finder<Customer>(searchCriteria) {
+    @Override
+    public Customer newInstance() {
+        return new Customer();
+    }
+};
+ArrayList<Customer> customers = finder.find();
+```
+
+
+##Delete
+```java
+mapper2.delete();
+```

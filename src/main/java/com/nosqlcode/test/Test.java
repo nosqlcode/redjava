@@ -52,5 +52,8 @@ public class Test {
 
 
         System.out.print(customers.size());
+
+
+        mapper2.delete();
     }
 }
