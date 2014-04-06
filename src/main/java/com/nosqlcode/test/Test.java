@@ -2,6 +2,9 @@ package com.nosqlcode.test;
 
 import com.nosqlcode.redjava.Mapper;
 import com.nosqlcode.redjava.Pool;
+import com.nosqlcode.redjava.SearchCriteria;
+
+import java.util.ArrayList;
 
 /**
  * User: thomas
@@ -36,5 +39,18 @@ public class Test {
 
 
         System.out.println(tom.firstName + " " + tom.lastName);
+
+
+        SearchCriteria searchCriteria = mapper2.getCriteria();
+        Mapper.Finder<Customer> finder = new Mapper.Finder<Customer>(searchCriteria) {
+            @Override
+            public Customer newInstance() {
+                return new Customer();
+            }
+        };
+        ArrayList<Customer> customers = finder.find();
+
+
+        System.out.print(customers.size());
     }
 }
