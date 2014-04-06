@@ -12,7 +12,9 @@ import redis.clients.jedis.Response;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-
+import java.util.HashMap;
+import java.util.Set;
+import java.util.function.BiConsumer;
 
 
 // demo comment
@@ -116,6 +118,17 @@ public class Mapper {
         pipe.sync();
     }
 
+    public SearchCriteria getCriteria() {
+
+        SearchCriteria searchCriteria = new SearchCriteria();
+
+        for (Member member : members) {
+            member.criteria(searchCriteria);
+        }
+
+        return  searchCriteria;
+    }
+
     public void close() {
         Pool.returnJedis(jedis);
     }
@@ -136,18 +149,21 @@ public class Mapper {
         public void save() {
             if (value() != null) {
                 pipe.hset(id.getBytes(), attr.getBytes(), format());
-                saveIndex(indexValue());
+                saveIndex();
             }
         }
 
         abstract protected byte[] format();
-        abstract protected double indexValue();
+        abstract protected double score();
 
-        protected void saveIndex(double score) {
-            pipe.zadd("index:" + type + ":" + attr, score, id);
+        protected void saveIndex() {
+            pipe.zadd(indexKey(), score(), id);
+        }
+        private String indexKey() {
+            return "index:" + type + ":" + attr;
         }
         private void deleteIndex() {
-            pipe.zrem("index:" + type + ":" + attr, id);
+            pipe.zrem(indexKey(), id);
         }
         public void load() {
             future = pipe.hget(id, attr);
@@ -176,6 +192,12 @@ public class Mapper {
                 e.printStackTrace();
             }
             return val;
+        }
+
+        protected void criteria(SearchCriteria searchCriteria) {
+            if (value() != null) {
+                searchCriteria.addQualifer(indexKey(), score());
+            }
         }
     }
 
@@ -210,7 +232,7 @@ public class Mapper {
             return mapper.getId().getBytes();
         }
         @Override
-        protected double indexValue() {
+        protected double score() {
             return index.scoreStr(mapper.getId());
         }
 
@@ -251,7 +273,7 @@ public class Mapper {
             return value().getBytes();
         }
         @Override
-        protected double indexValue() {
+        protected double score() {
             return index.scoreStr(value());
         }
         @Override
@@ -271,7 +293,7 @@ public class Mapper {
             return new byte[]{value().byteValue()};
         }
         @Override
-        protected double indexValue() {
+        protected double score() {
             return value();
         }
         @Override
@@ -291,7 +313,7 @@ public class Mapper {
             return new byte[]{toRed(value()).byteValue()};
         }
         @Override
-        protected double indexValue() {
+        protected double score() {
             return toRed(value());
         }
         @Override
@@ -311,6 +333,68 @@ public class Mapper {
                 return true;
             else
                 return false;
+        }
+    }
+
+    public abstract static class Finder<T> {
+
+        private Jedis jedis = Pool.getJedis();
+        private SearchCriteria searchCriteria;
+
+        public Finder(SearchCriteria searchCriteria) {
+            this.searchCriteria = searchCriteria;
+        }
+
+        public abstract T newInstance();
+
+        private Set<String> matchindIds(SearchCriteria.Qualifer qualifer) {
+            return jedis.zrangeByScore(qualifer.indexKey, qualifer.score, qualifer.score);
+        }
+
+        private ArrayList<String> retrieveIds() {
+            ArrayList<String> ids = new ArrayList<>();
+
+            HashMap<String, Integer> idOccurances = new HashMap<>();
+
+
+            for(SearchCriteria.Qualifer qualifer: searchCriteria.getQualifiers()) {
+
+                for (String id: matchindIds(qualifer)) {
+                    int previousOccurances = 0;
+                    if (idOccurances.containsKey(id)) {
+                        previousOccurances = idOccurances.get(id);
+                    }
+                    idOccurances.put(id, ++previousOccurances);
+                }
+            }
+
+            int numOfQualifers = searchCriteria.getQualifiers().size();
+
+            idOccurances.forEach(new BiConsumer<String, Integer>() {
+                @Override
+                public void accept(String s, Integer integer) {
+                    if (integer == numOfQualifers) {
+                        ids.add(s);
+                    }
+                }
+            });
+
+            return ids;
+        }
+
+        private T load(String id) {
+            T t = newInstance();
+            Mapper mapper = new Mapper(t, id);
+            mapper.load();
+            return t;
+        }
+
+        public ArrayList<T> find() {
+            ArrayList<T> tArrayList = new ArrayList<>();
+            for (String id: retrieveIds()) {
+                tArrayList.add(load(id));
+            }
+            return tArrayList;
         }
     }
 
