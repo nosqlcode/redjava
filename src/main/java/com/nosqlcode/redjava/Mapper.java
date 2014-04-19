@@ -13,6 +13,7 @@ import redis.clients.jedis.Response;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
@@ -55,15 +56,33 @@ public class Mapper {
 
             /* determine what type of member the field is
             and create member */
-            if (field.isAnnotationPresent(RedStr.class))
-                members.add(new Str(field, fieldName));
-            else if (field.isAnnotationPresent(RedInt.class))
-                members.add(new Int(field, fieldName));
-            else if (field.isAnnotationPresent(RedObj.class))
-                members.add(new Obj(field, fieldName));
-            else if (field.isAnnotationPresent(RedBool.class))
-                members.add(new Bool(field, fieldName));
 
+
+            if (field.isAnnotationPresent(RedLst.class)) {
+
+                if (field.isAnnotationPresent(RedStr.class))
+                    members.add(new PrimitiveListMember<>(
+                            field, fieldName, new StringFormatter()));
+                else if (field.isAnnotationPresent(RedInt.class))
+                    members.add(new PrimitiveListMember<>(
+                            field, fieldName, new IntegerFormatter()));
+                else if (field.isAnnotationPresent(RedBool.class))
+                    members.add(new PrimitiveListMember<>(
+                            field, fieldName, new BooleanFormatter()));
+            } else {
+
+                if (field.isAnnotationPresent(RedStr.class))
+                    members.add(new PrimitiveMember<>(
+                            field, fieldName, new StringFormatter()));
+                else if (field.isAnnotationPresent(RedInt.class))
+                    members.add(new PrimitiveMember<>(
+                            field, fieldName, new IntegerFormatter()));
+                else if (field.isAnnotationPresent(RedObj.class))
+                    members.add(new Obj(field, fieldName));
+                else if (field.isAnnotationPresent(RedBool.class))
+                    members.add(new PrimitiveMember<>(
+                            field, fieldName, new BooleanFormatter()));
+            }
 
         }
     }
@@ -109,6 +128,12 @@ public class Mapper {
         }
     }
 
+    public void load(String id) {
+
+        this.id = id;
+        this.load();
+    }
+
     public void delete() {
 
         pipe = jedis.pipelined();
@@ -146,43 +171,20 @@ public class Mapper {
             this.attr = attr;
         }
 
-        public void save() {
-            if (value() != null) {
-                pipe.hset(id.getBytes(), attr.getBytes(), format());
-                saveIndex();
-            }
-        }
+        abstract public void save();
+        abstract public void load();
+        public abstract void sync();
+        abstract public void delete();
 
-        abstract protected byte[] format();
-        abstract protected double score();
-
-        protected void saveIndex() {
-            pipe.zadd(indexKey(), score(), id);
+        protected void saveIndex(double score) {
+            pipe.zadd(indexKey(), score, id);
         }
-        private String indexKey() {
+        protected String indexKey() {
             return "index:" + type + ":" + attr;
         }
-        private void deleteIndex() {
+        protected void deleteIndex() {
             pipe.zrem(indexKey(), id);
         }
-        public void load() {
-            future = pipe.hget(id, attr);
-        }
-        public void delete() {
-            pipe.hdel(id, attr);
-            deleteIndex();
-        }
-
-        protected void sync() {
-            if (future.get() != null)
-                try {
-                    field.set(instance, parse((String) future.get()));
-                } catch (IllegalAccessException e) {
-                    e.printStackTrace();
-                }
-        }
-
-        abstract protected T parse(String str);
 
         protected T value() {
             T val = null;
@@ -194,11 +196,7 @@ public class Mapper {
             return val;
         }
 
-        protected void criteria(SearchCriteria searchCriteria) {
-            if (value() != null) {
-                searchCriteria.addQualifer(indexKey(), score());
-            }
-        }
+        abstract public void criteria(SearchCriteria searchCriteria);
     }
 
     public class Obj extends Member {
@@ -223,101 +221,92 @@ public class Mapper {
         public void save() {
             if (mapper != null) {
                 mapper.save();
-                super.save();
+                pipe.hset(id.getBytes(), attr.getBytes(),
+                        mapper.getId().getBytes());
             }
-        }
-
-        @Override
-        protected byte[] format() {
-            return mapper.getId().getBytes();
-        }
-        @Override
-        protected double score() {
-            return index.scoreStr(mapper.getId());
-        }
-
-        @Override
-        public void sync() {
-        }
-
-        @Override
-        protected Object parse(String str) {
-            return null;
         }
 
         @Override
         public void load() {
             if (mapper != null) {
-                super.load();
-                mapper.load();
+                future = pipe.hget(id.getBytes(), attr.getBytes());
+            }
+        }
+
+        @Override
+        public void sync() {
+            String value = (String) value();
+            if (value != null) {
+                mapper.load(value);
             }
         }
 
         @Override
         public void delete() {
-            super.delete();
             if (mapper != null) {
+                pipe.hdel(id, attr);
                 mapper.delete();
             }
         }
-    }
-
-    public class Str extends Member<String> {
-
-        public Str(Field field, String attr) {
-            super(field, attr);
-        }
 
         @Override
-        protected byte[] format() {
-            return value().getBytes();
-        }
-        @Override
-        protected double score() {
-            return index.scoreStr(value());
-        }
-        @Override
-        protected String parse(String str) {
-            return str;
+        public void criteria(SearchCriteria searchCriteria) {
         }
     }
 
-    public class Int extends Member<Integer> {
+    private interface PrimitiveFormatter<T> {
+        byte[] format(T value);
+        double score(T value);
+        T parse(String str);
+    }
 
-        public Int(Field field, String attr) {
-            super(field, attr);
+    private class IntegerFormatter implements PrimitiveFormatter<Integer> {
+        @Override
+        public byte[] format(Integer value) {
+            return new byte[]{value.byteValue()};
         }
 
         @Override
-        protected byte[] format() {
-            return new byte[]{value().byteValue()};
+        public double score(Integer value) {
+            return value;
         }
+
         @Override
-        protected double score() {
-            return value();
-        }
-        @Override
-        protected Integer parse(String str) {
+        public Integer parse(String str) {
             return Integer.parseInt(str);
         }
     }
 
-    public class Bool extends Member<Boolean> {
-
-        public Bool(Field field, String attr) {
-            super(field, attr);
+    private class StringFormatter implements PrimitiveFormatter<String> {
+        @Override
+        public byte[] format(String value) {
+            return value.getBytes();
         }
 
         @Override
-        protected byte[] format() {
-            return new byte[]{toRed(value()).byteValue()};
+        public double score(String value) {
+            return index.scoreStr(value);
         }
+
         @Override
-        protected double score() {
-            return toRed(value());
+        public String parse(String str) {
+            return str;
         }
+    }
+
+    private class BooleanFormatter implements PrimitiveFormatter<Boolean> {
         @Override
-        protected Boolean parse(String str) {
+        public byte[] format(Boolean value) {
+            return new byte[]{toRed(value).byteValue()};
+        }
+
+        @Override
+        public double score(Boolean value) {
+            return toRed(value);
+        }
+
+        @Override
+        public Boolean parse(String str) {
             return fromRed(str);
         }
 
@@ -333,6 +322,129 @@ public class Mapper {
                 return true;
             else
                 return false;
+        }
+    }
+
+    private class PrimitiveMember<T> extends Member<T> {
+
+        PrimitiveFormatter<T> primitiveFormatter;
+        public PrimitiveMember(Field field, String attr, PrimitiveFormatter<T> primitiveFormatter)
+        {
+            super(field, attr);
+            this.primitiveFormatter = primitiveFormatter;
+        }
+
+        @Override
+        public void save() {
+            T t = value();
+            if (t != null) {
+                pipe.hset(id.getBytes(), attr.getBytes(),
+                        primitiveFormatter.format(t));
+                saveIndex(primitiveFormatter.score(t));
+            }
+        }
+
+        @Override
+        public void load() {
+            future = pipe.hget(id, attr);
+        }
+
+        @Override
+        public void sync() {
+            String temp = (String) future.get();
+            if (temp != null)
+                try {
+                    field.set(instance, primitiveFormatter.parse(temp));
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+        }
+
+        @Override
+        public void delete() {
+            pipe.hdel(id, attr);
+            deleteIndex();
+        }
+
+        @Override
+        public void criteria(SearchCriteria searchCriteria) {
+            T t = value();
+            if (t != null) {
+                searchCriteria.addQualifer(indexKey(), primitiveFormatter.score(t));
+            }
+        }
+    }
+
+    private class PrimitiveListMember<T> extends Member<List<T>> {
+
+        String memberId;
+        Response<String> memberIdFuture;
+
+        PrimitiveFormatter<T> primitiveFormatter;
+        public PrimitiveListMember(Field field, String attr, PrimitiveFormatter<T> primitiveFormatter)
+        {
+            super(field, attr);
+            this.primitiveFormatter = primitiveFormatter;
+        }
+
+        @Override
+        public void save() {
+            List<T> value = value();
+            if (value != null) {
+                // save reference to list
+                pipe.hset(id.getBytes(), attr.getBytes(), memberId.getBytes());
+                // save values in list
+                for (T t: value) {
+                    pipe.lpush(memberId.getBytes(), primitiveFormatter.format(t));
+                    saveIndex(primitiveFormatter.score(t));
+                }
+            }
+        }
+
+        @Override
+        public void load() {
+            memberIdFuture = pipe.hget(id, attr);
+        }
+
+        @Override
+        public void sync() {
+            memberId = memberIdFuture.get();
+
+            if (memberId != null) {
+
+                Response<List<String>> futures = pipe.lrange(memberId, 0, -1);
+
+                List<String> temp = futures.get();
+
+                if (temp != null) {
+                    List<T> tempConverted = new ArrayList<>();
+                    for (String str: temp) {
+                        tempConverted.add(primitiveFormatter.parse(str));
+                    }
+                    try {
+                        field.set(instance, tempConverted);
+                    } catch (IllegalAccessException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void delete() {
+            pipe.hdel(id, attr);
+            pipe.del(memberId);
+            deleteIndex();
+        }
+
+        @Override
+        public void criteria(SearchCriteria searchCriteria) {
+            List<T> value = value();
+            if (value != null) {
+                for (T t: value) {
+                    searchCriteria.addQualifer(indexKey(), primitiveFormatter.score(t));
+                }
+            }
         }
     }
 
