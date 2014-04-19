@@ -387,13 +387,28 @@ public class Mapper {
             this.primitiveFormatter = primitiveFormatter;
         }
 
+        private String subType() {
+            return type + ":" + attr;
+        }
+
         @Override
         public void save() {
             List<T> value = value();
             if (value != null) {
+
+                // get new member id if there is none
+                if (memberId == null) {
+                    memberId = subType() + ":" + Long.toString(jedis.incr(subType()));
+                } else {
+                    // remove pre existing list
+                    pipe.del(memberId);
+                    deleteIndex();
+                }
+
                 // save reference to list
                 pipe.hset(id.getBytes(), attr.getBytes(), memberId.getBytes());
-                // save values in list
+
+                // save the new list
                 for (T t: value) {
                     pipe.lpush(memberId.getBytes(), primitiveFormatter.format(t));
                     saveIndex(primitiveFormatter.score(t));
@@ -412,9 +427,7 @@ public class Mapper {
 
             if (memberId != null) {
 
-                Response<List<String>> futures = pipe.lrange(memberId, 0, -1);
-
-                List<String> temp = futures.get();
+                List<String> temp = jedis.lrange(memberId, 0, -1);
 
                 if (temp != null) {
                     List<T> tempConverted = new ArrayList<>();

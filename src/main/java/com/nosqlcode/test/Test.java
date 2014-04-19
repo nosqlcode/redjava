@@ -21,7 +21,7 @@ public class Test {
         Pool.connect("127.0.0.1", 6379);
 
 
-        Customer thomas = new Customer("thomas", "silva");
+        Customer thomas = new Customer("thomas", "silva", "tom", "tride");
         thomas.address = new Address("123 fake street", "a city", "89764", "AA");
 
 
